@@ -63,3 +63,14 @@ This project visualizes plant-like structures generated using L-Systems (Lindenm
 *   Modify `DRAWING_PADDING` to control the margin around the auto-scaled drawing.
 
 *   Extend the `LSystem` and `Turtle`
+
+## TODO / Future Enhancements
+
+*   [ ] **Memory System:** Implement saving/loading plant configurations (axiom, rules, settings) to/from JSON files.
+*   [ ] **Random Plant Generation:** Add functionality to generate random L-system rules or select from presets.
+*   [ ] **Leaves & Pollen:** Integrate drawing routines for leaves and pollen particles at specific points in the L-system.
+*   [ ] **Branch Variation:** Allow branch thickness and color to vary based on recursion depth or other factors.
+*   [ ] **Zoom Functionality:** Implement zoom in/out controls for the visualization.
+*   [ ] **Animations:** Animate the growth of the L-system step-by-step.
+*   [ ] **(Later) 3D Rendering:** Explore migrating the visualization to a 3D library (e.g., PyOpenGL, Ursina).
+*   [ ] **(Later) Textures:** Add textures to branches and leaves (especially relevant for 3D).
