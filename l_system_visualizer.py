@@ -2,6 +2,7 @@ import pygame
 import math
 import pygame_gui
 import json # Added for potential future rule parsing, though not used yet
+import random # Added import
 
 
 class LSystem:
@@ -31,16 +32,18 @@ class Turtle:
         self.angle_rad = math.radians(angle_deg)
         self.stack = []  # Stack to save turtle state (position and angle)
 
-    def turn_left(self, angle_deg):
-        self.angle_rad += math.radians(angle_deg)
+    def turn_left(self, angle_rad):
+        """Turn the turtle left by a given angle in radians."""
+        self.angle_rad -= angle_rad
 
-    def turn_right(self, angle_deg):
-        self.angle_rad -= math.radians(angle_deg)
+    def turn_right(self, angle_rad):
+        """Turn the turtle right by a given angle in radians."""
+        self.angle_rad += angle_rad
 
-    def move_forward(self, distance, screen, color, thickness):
-        """Move forward, drawing a line."""
-        end_x = self.x + distance * math.cos(self.angle_rad)
-        end_y = self.y + distance * math.sin(self.angle_rad)
+    def move_forward(self, screen, length, color, thickness):
+        """Move the turtle forward, drawing a line."""
+        end_x = self.x + length * math.cos(self.angle_rad)
+        end_y = self.y - length * math.sin(self.angle_rad)
         pygame.draw.line(screen, color, (int(self.x), int(self.y)), (int(end_x), int(end_y)), thickness)
         self.x = end_x
         self.y = end_y
@@ -69,18 +72,21 @@ def parse_rules(rules_string):
         return {} # Return empty dict on error
     return rules
 
-def draw_lsystem(screen, lsystem_string, start_pos, start_angle, angle_deg, length, line_color, line_thickness, background_color):
-    """Draws the L-System using the Turtle."""
+def draw_lsystem(screen, lsystem_string, start_pos, start_angle, angle_deg, length, line_color, line_thickness, background_color, angle_variation_deg, length_variation_factor):
+    """Draws the L-System using the Turtle with randomized variations."""
     turtle = Turtle(start_pos[0], start_pos[1], start_angle)
     screen.fill(background_color)
 
     for command in lsystem_string:
         if command == 'F':
-            turtle.move_forward(length, screen, line_color, line_thickness)
+            current_length = length * random.uniform(1.0 - length_variation_factor, 1.0 + length_variation_factor)
+            turtle.move_forward(screen, current_length, line_color, line_thickness)
         elif command == '+':
-            turtle.turn_right(angle_deg) # Turn right
+            turn_angle = angle_deg + random.uniform(-angle_variation_deg, angle_variation_deg)
+            turtle.turn_right(math.radians(turn_angle))
         elif command == '-':
-            turtle.turn_left(angle_deg)  # Turn left
+            turn_angle = angle_deg + random.uniform(-angle_variation_deg, angle_variation_deg)
+            turtle.turn_left(math.radians(turn_angle))
         elif command == '[':
             turtle.push_state()
         elif command == ']':
@@ -96,13 +102,19 @@ DEFAULT_SETTINGS = {
     "axiom": "X",
     "rules_string": "X:F+[[X]-X]-F[-FX]+X,F:FF", # String representation
     "iterations": 5,
-    "angle": 25.0,
-    "length": 10.0,
+    "angle_deg": 25.0,
+    "start_angle_deg": 90.0,
+    "length": 5.0,
     "start_pos": (400, 600),
-    "start_angle": -90, # Pointing upwards
     "line_thickness": 1,
-    "line_color": (0, 200, 0),
-    "background_color": (10, 10, 40)
+    "line_color": (0, 255, 0),       # Green
+    "background_color": (0, 0, 0), # Black
+    "screen_width": 800,
+    "screen_height": 600,
+    "start_x_ratio": 0.5,           # Start X at 50% of screen width
+    "start_y_ratio": 1.0,           # Start Y at 100% of screen height (bottom)
+    "angle_variation_deg": 3.0,     # Added: Max random angle variation in degrees
+    "length_variation_factor": 0.05 # Added: Max random length variation (e.g., 0.05 = +/- 5%)
 }
 current_settings = DEFAULT_SETTINGS.copy()
 
@@ -129,113 +141,125 @@ apply_button = pygame_gui.elements.UIButton(
 
 # Settings Window Class
 class SettingsWindow(pygame_gui.elements.UIWindow):
-    def __init__(self, manager, current_settings_ref):
-        super().__init__(pygame.Rect((100, 50), (450, 350)), manager=manager,
-                         window_display_title='L-System Settings', object_id='#settings_window')
+    def __init__(self, manager, initial_settings):
+        super().__init__(pygame.Rect(150, 50, 400, 550), manager=manager, window_display_title="L-System Settings") # Increased height slightly
 
-        self.current_settings_ref = current_settings_ref
-        self.manager = manager
+        self.settings = initial_settings.copy() # Work on a copy
+        self.ui_elements = {}
 
-        # --- UI Elements for Settings ---
-        y_pos = 10
-        label_width = 100
-        entry_width = 280
-        input_height = 30
-        padding = 5
+        # Layout variables
+        current_y = 10
+        label_width = 150
+        entry_width = 200
+        row_height = 30
+        input_height = 25
+        margin = 10
 
-        # Iterations
-        pygame_gui.elements.UILabel(pygame.Rect((10, y_pos), (label_width, input_height)),
-                                    'Iterations:', manager=self.manager, container=self)
-        self.iterations_entry = pygame_gui.elements.UITextEntryLine(pygame.Rect((label_width + 15, y_pos), (entry_width, input_height)),
-                                                                      manager=self.manager, container=self, object_id='#iterations_entry')
-        self.iterations_entry.set_text(str(self.current_settings_ref['iterations']))
-        y_pos += input_height + padding
+        # Helper to create label and entry row
+        def create_setting_row(key, label_text):
+            nonlocal current_y
+            # Label
+            pygame_gui.elements.UILabel(relative_rect=pygame.Rect(margin, current_y, label_width, input_height),
+                                        text=label_text,
+                                        manager=manager,
+                                        container=self)
+            # Entry Line
+            entry = pygame_gui.elements.UITextEntryLine(relative_rect=pygame.Rect(margin + label_width + margin, current_y, entry_width, input_height),
+                                                         manager=manager,
+                                                         container=self)
+            entry.set_text(str(self.settings.get(key, "")))
+            self.ui_elements[key] = entry
+            current_y += row_height
+            return entry # Return the entry element
 
-        # Angle
-        pygame_gui.elements.UILabel(pygame.Rect((10, y_pos), (label_width, input_height)),
-                                    'Angle (°):', manager=self.manager, container=self)
-        self.angle_entry = pygame_gui.elements.UITextEntryLine(pygame.Rect((label_width + 15, y_pos), (entry_width, input_height)),
-                                                                 manager=self.manager, container=self, object_id='#angle_entry')
-        self.angle_entry.set_text(str(self.current_settings_ref['angle']))
-        y_pos += input_height + padding
+        # Create UI Elements for each setting
+        create_setting_row("axiom", "Axiom:")
+        create_setting_row("rules_string", "Rules (comma-sep):")
+        iterations_entry = create_setting_row("iterations", "Iterations:") # Get the entry element
 
-        # Length
-        pygame_gui.elements.UILabel(pygame.Rect((10, y_pos), (label_width, input_height)),
-                                    'Length:', manager=self.manager, container=self)
-        self.length_entry = pygame_gui.elements.UITextEntryLine(pygame.Rect((label_width + 15, y_pos), (entry_width, input_height)),
-                                                                  manager=self.manager, container=self, object_id='#length_entry')
-        self.length_entry.set_text(str(self.current_settings_ref['length']))
-        y_pos += input_height + padding
-
-        # Axiom
-        pygame_gui.elements.UILabel(pygame.Rect((10, y_pos), (label_width, input_height)),
-                                    'Axiom:', manager=self.manager, container=self)
-        self.axiom_entry = pygame_gui.elements.UITextEntryLine(pygame.Rect((label_width + 15, y_pos), (entry_width, input_height)),
-                                                                 manager=self.manager, container=self, object_id='#axiom_entry')
-        self.axiom_entry.set_text(self.current_settings_ref['axiom'])
-        y_pos += input_height + padding
-
-        # Rules (using a simple text line for now)
-        pygame_gui.elements.UILabel(pygame.Rect((10, y_pos), (label_width, input_height)),
-                                    'Rules:', manager=self.manager, container=self)
-        self.rules_entry = pygame_gui.elements.UITextEntryLine(pygame.Rect((label_width + 15, y_pos), (entry_width, input_height*2)), # Taller entry
-                                                                 manager=self.manager, container=self, object_id='#rules_entry')
-        self.rules_entry.set_text(self.current_settings_ref['rules_string'])
-        y_pos += input_height*2 + padding * 5 # More padding before button
-
-
-        # Apply & Close Button
-        self.apply_close_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((self.rect.width - 160, y_pos), (150, 35)),
-            text='Apply & Close',
-            manager=self.manager,
+        # Add warning label below iterations
+        self.iteration_warning_label = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(margin + label_width + margin, current_y, entry_width, input_height),
+            text="Warning: >10 may freeze!",
+            manager=manager,
             container=self,
-            object_id='#apply_close_button'
+            object_id='#warning_label' # Optional: for styling later
         )
+        self.iteration_warning_label.hide() # Initially hidden
+        current_y += row_height # Increment Y position after adding the label
+
+
+        create_setting_row("angle_deg", "Angle (degrees):")
+        create_setting_row("start_angle_deg", "Start Angle (deg):")
+        create_setting_row("length", "Segment Length:")
+        create_setting_row("line_thickness", "Line Thickness:")
+        create_setting_row("angle_variation_deg", "Angle Variation (deg):")
+        create_setting_row("length_variation_factor", "Length Variation (%):")
+
+        current_y += margin # Add space before button
+
+        # Apply Button (inside the window)
+        self.apply_button = pygame_gui.elements.UIButton(relative_rect=pygame.Rect(margin, current_y, 100, 30),
+                                                         text='Apply',
+                                                         manager=manager,
+                                                         container=self)
 
     def process_event(self, event):
-        super().process_event(event) # Important for window interaction
+        # Handle text entry changes to show/hide warning
+        if event.type == pygame_gui.UI_TEXT_ENTRY_CHANGED and event.ui_element == self.ui_elements["iterations"]:
+            try:
+                iter_val = int(event.text)
+                if iter_val > 10:
+                    self.iteration_warning_label.show()
+                else:
+                    self.iteration_warning_label.hide()
+            except ValueError:
+                self.iteration_warning_label.hide() # Hide if not a valid int
 
+        # Handle internal apply button press
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
-            if event.ui_element == self.apply_close_button:
+            if event.ui_element == self.apply_button:
+                print("Settings Apply button clicked (inside window)")
+                # Update the internal settings dictionary from UI elements
                 try:
-                    # Validate and update settings
-                    new_iterations = int(self.iterations_entry.get_text())
-                    new_angle = float(self.angle_entry.get_text())
-                    new_length = float(self.length_entry.get_text())
-                    new_axiom = self.axiom_entry.get_text()
-                    new_rules_string = self.rules_entry.get_text()
+                    self.settings["axiom"] = self.ui_elements["axiom"].get_text()
+                    self.settings["rules_string"] = self.ui_elements["rules_string"].get_text()
+                    # Use helper for numeric conversions
+                    self.settings["iterations"] = self._get_int_from_entry("iterations")
+                    self.settings["angle_deg"] = self._get_float_from_entry("angle_deg")
+                    self.settings["start_angle_deg"] = self._get_float_from_entry("start_angle_deg")
+                    self.settings["length"] = self._get_float_from_entry("length")
+                    self.settings["line_thickness"] = self._get_int_from_entry("line_thickness")
+                    self.settings["angle_variation_deg"] = self._get_float_from_entry("angle_variation_deg")
+                    self.settings["length_variation_factor"] = self._get_float_from_entry("length_variation_factor")
 
-                    if new_iterations <= 0 or new_length <= 0:
-                        raise ValueError("Iterations and Length must be positive.")
-
-                    self.current_settings_ref['iterations'] = new_iterations
-                    self.current_settings_ref['angle'] = new_angle
-                    self.current_settings_ref['length'] = new_length
-                    self.current_settings_ref['axiom'] = new_axiom
-                    self.current_settings_ref['rules_string'] = new_rules_string
-
-                    print("Settings Applied:", self.current_settings_ref)
-                    self.kill() # Close the window
-                    # Signal that settings were applied (optional, could use custom events)
-                    return True # Indicate settings applied
-
+                    print("Settings applied:", self.settings)
+                    return True # Indicate settings were applied
                 except ValueError as e:
-                    print(f"Invalid input: {e}")
-                    # Optional: Show an error message window
-                    pygame_gui.windows.UIMessageWindow(
-                        rect=pygame.Rect((200, 150), (300, 150)),
-                        html_message=f"Invalid input: {e}. Please check values.",
-                        manager=self.manager
-                    )
-                except Exception as e:
-                    print(f"An unexpected error occurred: {e}")
-                    pygame_gui.windows.UIMessageWindow(
-                        rect=pygame.Rect((200, 150), (300, 150)),
-                        html_message=f"Error: {e}",
-                        manager=self.manager
-                    )
-        return False # Indicate settings not applied or no relevant event
+                    print(f"Error applying settings: Invalid input - {e}")
+                    # Optionally show an error message to the user here
+                    return False # Indicate settings were NOT applied successfully
+        return False # No settings applied from this event
+
+    # Helper methods for safe type conversion
+    def _get_int_from_entry(self, key):
+        try:
+            return int(self.ui_elements[key].get_text())
+        except ValueError:
+            print(f"Warning: Invalid integer input for '{key}'. Using default.")
+            return DEFAULT_SETTINGS[key] # Fallback to default
+
+    def _get_float_from_entry(self, key):
+        try:
+            return float(self.ui_elements[key].get_text())
+        except ValueError:
+            print(f"Warning: Invalid float input for '{key}'. Using default.")
+            return DEFAULT_SETTINGS[key] # Fallback to default
+
+    def get_applied_settings(self):
+        """Returns the validated settings from the window."""
+        # This assumes process_event was called and returned True
+        return self.settings.copy()
 
 
 settings_window = None # Variable to hold the window instance
@@ -244,23 +268,46 @@ settings_window = None # Variable to hold the window instance
 def generate_and_draw(screen, settings):
     """Generates the L-System string and draws it."""
     print("Generating with settings:", settings) # Debug print
+
+    # --- Add Console Warning ---
+    if settings["iterations"] > 10:
+        print(f"WARNING: Generating with {settings['iterations']} iterations. This may take a long time or freeze.")
+    # -------------------------
+
     rules_dict = parse_rules(settings["rules_string"])
     lsystem = LSystem(settings["axiom"], rules_dict)
     lsystem_string = lsystem.generate(settings["iterations"])
 
+    print(f"Generated string length: {len(lsystem_string)}") # Info
+
     screen.fill(settings["background_color"]) # Clear screen before drawing
+
+    # --- Add Drawing Time Warning (Start) ---
+    start_time = pygame.time.get_ticks()
+    # ---------------------------------------
 
     draw_lsystem(
         screen=screen,
         lsystem_string=lsystem_string,
         start_pos=settings["start_pos"],
-        start_angle=settings["start_angle"],
-        angle_deg=settings["angle"],
+        start_angle=settings["start_angle_deg"],
+        angle_deg=settings["angle_deg"],
         length=settings["length"],
         line_color=settings["line_color"],
         line_thickness=settings["line_thickness"],
-        background_color=settings["background_color"] # Pass background color
+        background_color=settings["background_color"],
+        angle_variation_deg=settings["angle_variation_deg"],
+        length_variation_factor=settings["length_variation_factor"]
     )
+
+    # --- Add Drawing Time Warning (End) ---
+    end_time = pygame.time.get_ticks()
+    draw_duration_ms = end_time - start_time
+    print(f"Drawing took {draw_duration_ms} ms.")
+    if draw_duration_ms > 3000: # If drawing takes > 3 seconds
+         print("WARNING: Drawing took a long time. Consider reducing iterations or complexity.")
+    # ------------------------------------
+
     pygame.display.flip() # Update the full display
 
 
@@ -283,15 +330,22 @@ while running:
              if settings_window.process_event(event):
                  settings_applied = True # Settings were applied by the window
                  needs_redraw = True     # Trigger redraw
+                 current_settings = settings_window.get_applied_settings()
+                 settings_window.kill()  # Close window after applying
+                 settings_window = None
+                 print("Settings applied from window, window closed.")
 
         # Handle events for the main UI manager
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
             if event.ui_element == settings_button:
-                # Close existing window if open, before creating a new one
-                if settings_window:
-                    settings_window.kill()
-                settings_window = SettingsWindow(ui_manager, current_settings)
-                print("Settings button clicked - window opened")
+                # Create window only if it doesn't exist
+                if not settings_window:
+                    settings_window = SettingsWindow(ui_manager, current_settings)
+                    print("Settings button clicked - window opened")
+                else:
+                    # If window exists, maybe bring it to front (optional)
+                    # settings_window.show() # Or some other focus mechanism if available
+                    print("Settings button clicked - window already open")
 
             elif event.ui_element == apply_button:
                 print("Redraw button clicked")
