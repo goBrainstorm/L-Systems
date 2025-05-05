@@ -5,18 +5,22 @@ import math # For rounding slider values
 # Assuming settings module provides SLIDER_FLOAT_PRECISION and parse_rules
 from settings import SLIDER_FLOAT_PRECISION, parse_rules
 
+# Custom event for signaling settings applied
+# SETTINGS_APPLIED_EVENT = pygame.USEREVENT + 1
+
 class SettingsWindow(pygame_gui.elements.UIWindow):
     """UI Window for adjusting L-System parameters."""
     def __init__(self, manager, initial_settings):
         # Define reasonable default window size and position
         window_width = 550
-        window_height = 550 # Increased height to fit all elements
+        window_height = 580 # Increased height slightly for apply button
         super().__init__(pygame.Rect(150, 50, window_width, window_height), # Position and size
                          manager=manager,
                          window_display_title="L-System Settings")
 
         self.settings = initial_settings.copy() # Work on a copy
         self.ui_elements = {} # Store UI elements (entries, sliders, labels)
+        self.apply_button = None # Reference to the apply button
         self.applied_settings = initial_settings.copy()
         self.has_changes = False # Track if settings changed since last apply
 
@@ -83,9 +87,6 @@ class SettingsWindow(pygame_gui.elements.UIWindow):
         create_slider_row("angle_variation_deg", "Angle Variation (°):", (0.0, 15.0))
         create_slider_row("length_variation_factor", "Length Variation (%):", (0.0, 0.5)) # Factor
 
-        # --- Apply/Close Buttons (using standard window buttons) ---
-        # We will handle apply logic based on changes and window close event
-
         # Add a warning label for high iterations
         self.iteration_warning_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(margin, current_y, window_width - 2 * margin, input_height),
@@ -95,6 +96,18 @@ class SettingsWindow(pygame_gui.elements.UIWindow):
             visible=False # Initially hidden
         )
         self.ui_elements['iteration_warning'] = self.iteration_warning_label
+        current_y += row_height
+
+        # --- Add Apply Button ---
+        button_width = 100
+        button_height = 35
+        apply_button_x = window_width - button_width - margin
+        self.apply_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(apply_button_x, current_y, button_width, button_height),
+            text='Apply',
+            manager=manager,
+            container=self
+        )
 
     def update_ui_from_settings(self):
         """Updates the UI elements to reflect the current internal settings."""
@@ -129,51 +142,90 @@ class SettingsWindow(pygame_gui.elements.UIWindow):
                     new_settings[key] = new_val_str
                     changed = True
                     if key == "rules_string": # Auto-parse rules when string changes
-                        new_settings["rules"] = parse_rules(new_val_str)
+                        try:
+                            new_settings["rules"] = parse_rules(new_val_str)
+                        except ValueError as e:
+                            print(f"Error parsing rules: {e}") # Handle potential parse errors
+                            # Optionally provide user feedback here (e.g., change border color)
             elif isinstance(element, tuple): # Slider, ValueLabel, is_float
                 slider, value_label, is_float = element
                 new_val_float = slider.get_current_value()
                 # Round floats to precision for comparison and storage
                 if is_float:
                     new_val = round(new_val_float, SLIDER_FLOAT_PRECISION)
-                    if abs(float(current_value) - new_val) > 1e-9: # Compare floats carefully
+                    # Use a tolerance for float comparison
+                    current_float = float(current_value) if current_value is not None else 0.0
+                    if abs(current_float - new_val) > 10**-(SLIDER_FLOAT_PRECISION + 1):
                          new_settings[key] = new_val
                          value_label.set_text(f"{new_val:.{SLIDER_FLOAT_PRECISION}f}")
                          changed = True
                 else:
                     new_val = int(new_val_float)
-                    if int(current_value) != new_val:
+                    current_int = int(current_value) if current_value is not None else 0
+                    if current_int != new_val:
                         new_settings[key] = new_val
                         value_label.set_text(str(new_val))
                         changed = True
-                        if key == 'iterations': # Show warning for high iterations
-                           self.iteration_warning_label.set_visible(new_val > 7)
+                        if key == 'iterations': # Show/hide warning for high iterations
+                           if new_val > 7:
+                               self.iteration_warning_label.show()
+                           else:
+                               self.iteration_warning_label.hide()
 
         if changed:
             self.settings = new_settings
             self.has_changes = True
+            # print("Settings updated from UI, has_changes=True") # Debugging
 
         return changed
 
     def get_applied_settings(self):
         """Return the last settings that were explicitly applied."""
+        # Ensure rules are parsed based on the applied rules_string
+        # This is important if rules_string was edited but not applied before closing
+        try:
+            self.applied_settings["rules"] = parse_rules(self.applied_settings["rules_string"])
+        except ValueError as e:
+            print(f"Error parsing applied rules string: {e}")
+            # Keep the old rules if parsing fails
+
         return self.applied_settings
 
     def apply_changes(self):
         """Mark the current settings as applied."""
+        # Ensure current settings (from UI) are captured before applying
+        self.update_settings_from_ui()
+        # Parse rules from the potentially updated rules_string before applying
+        try:
+             self.settings["rules"] = parse_rules(self.settings["rules_string"])
+        except ValueError as e:
+             print(f"Error parsing rules before applying: {e}")
+             # Decide how to handle invalid rules - maybe prevent apply?
+             # For now, we proceed but the rules might be invalid/old
+
         self.applied_settings = self.settings.copy()
         self.has_changes = False
+        print("Changes applied. has_changes=False") # Debugging
 
     def process_event(self, event):
-        """Handle events relevant to the settings window, like slider changes."""
+        """Handle events relevant to the settings window, like slider changes or Apply button."""
         # Update internal settings immediately when UI changes
         # This allows slider value labels to update in real-time
+        settings_changed = False
         if event.type == pygame_gui.UI_HORIZONTAL_SLIDER_MOVED:
-            self.update_settings_from_ui()
+            settings_changed = self.update_settings_from_ui()
         elif event.type == pygame_gui.UI_TEXT_ENTRY_CHANGED:
-             self.update_settings_from_ui()
-        # Add handling for Apply button if it were inside the window
-        # Or handle apply on window close
+             settings_changed = self.update_settings_from_ui()
+
+        # Handle Apply button press
+        if event.type == pygame_gui.UI_BUTTON_PRESSED and event.ui_element == self.apply_button:
+            print("Apply button pressed inside SettingsWindow")
+            self.apply_changes() # Mark changes as applied internally
+
+        # Let the UIWindow handle its own events too (like dragging, closing)
+        super().process_event(event)
+
+        # return settings_changed # Return value might be useful elsewhere
 
     # Override kill method to handle applying changes on close if desired
     def kill(self):
