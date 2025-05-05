@@ -1,0 +1,74 @@
+{
+    "presets": [
+        {
+            "name": "Classic Plant",
+            "axiom": "X",
+            "rules_string": "X:F+[[X]-X]-F[-FX]+X,F:FF",
+            "iterations": 5,
+            "angle_deg": 25.0,
+            "start_angle_deg": 90.0,
+            "length": 5.0,
+            "line_thickness": 1,
+            "angle_variation_deg": 3.0,
+            "length_variation_factor": 0.05,
+            "start_x_ratio": 0.5,
+            "start_y_ratio": 1.0
+        },
+        {
+            "name": "Koch Curve (90 deg)",
+            "axiom": "F",
+            "rules_string": "F:F+F-F-F+F",
+            "iterations": 4,
+            "angle_deg": 90.0,
+            "start_angle_deg": 0.0,
+            "length": 5.0,
+            "line_thickness": 1,
+            "angle_variation_deg": 0.0,
+            "length_variation_factor": 0.0,
+            "start_x_ratio": 0.1,
+            "start_y_ratio": 0.9
+        },
+        {
+            "name": "Sierpinski Triangle (Arrowhead)",
+            "axiom": "A",
+            "rules_string": "A:B-A-B,B:A+B+A",
+            "iterations": 6,
+            "angle_deg": 60.0,
+            "start_angle_deg": 0.0,
+            "length": 6.0,
+            "line_thickness": 1,
+            "angle_variation_deg": 0.0,
+            "length_variation_factor": 0.0,
+            "start_x_ratio": 0.1,
+            "start_y_ratio": 0.1
+        },
+        {
+             "name": "Dragon Curve",
+             "axiom": "F",
+             "rules_string": "F:F+G,G:F-G",
+             "iterations": 10,
+             "angle_deg": 90.0,
+             "start_angle_deg": 0.0,
+             "length": 8.0,
+             "line_thickness": 1,
+             "angle_variation_deg": 0.0,
+             "length_variation_factor": 0.0,
+             "start_x_ratio": 0.3,
+             "start_y_ratio": 0.5
+        },
+        {
+             "name": "Fractal Plant (Wiki)",
+             "axiom": "X",
+             "rules_string": "X:F+[[X]-X]-F[-FX]+X,F:FF",
+             "iterations": 6,
+             "angle_deg": 25.0,
+             "start_angle_deg": 90.0,
+             "length": 4.0,
+             "line_thickness": 1,
+             "angle_variation_deg": 2.5,
+             "length_variation_factor": 0.03,
+             "start_x_ratio": 0.5,
+             "start_y_ratio": 1.0
+        }
+    ]
+}

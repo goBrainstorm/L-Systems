@@ -2,6 +2,12 @@
 
 This project visualizes plant-like structures generated using L-Systems (Lindenmayer systems) with Pygame and Pygame GUI.
 
+## Current Status (Important!)
+
+**This version reflects a major refactoring effort.** The codebase has been reorganized into a more modular structure (`main.py`, `l_system.py`, `turtle.py`, `renderer.py`, `gui.py`, `settings.py`).
+
+**Due to the extensive changes, there might be bugs or regressions.** Please test carefully. The previous monolithic script (`l_system_visualizer.py`) has been removed.
+
 ## Features
 
 *   Generates L-System strings based on an axiom, rules, and number of iterations.
